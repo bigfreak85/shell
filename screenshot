@@ -1,0 +1,4 @@
+#!/bin/bash
+cd /tmp
+OUTPUT="$(scrot "$@" '%s_$wx$h.png' -u -e 'fb < /tmp/$f')"
+notify-send "Screen uploaded" "${OUTPUT}"

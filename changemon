@@ -1,0 +1,44 @@
+#!/bin/bash
+#**********************************************************
+#* Dateiänderungsmonitor V1.9 by Raffael Willems@RVI GmbH *
+#**********************************************************
+echo $$ > /var/run/changemon.pid
+logziel="/tmp/changemon.log"
+logdelete="/tmp/logdelete.log"
+logchange="/tmp/logchange.log"
+logcreate="/tmp/logcreate.log"
+
+printf "\n" > $logdelete
+printf "\n" > $logchange
+printf "\n" > $logcreate
+
+inotifywait -mrq --exclude '(.swp|.swx|.part|.tmp|\~\$.*)' -e create -e modify -e delete /home/plaene | while read line;
+do
+        RES=$(awk -F' CREATE | MODIFY | DELETE ' '{if($0~"CREATE") myFS="erstellt";if($0~"MODIFY") myFS="geändert";if($0~"DELETE") myFS="gelöscht";print $1 "@" myFS "@" $2}' <<< "$line")
+        #printf "Ergebnis: $RES\n\n"
+
+        path="$(awk -F@ '{print $1}' <<< "$RES")"
+        action="$(awk -F@ '{print $2}' <<< "$RES")"
+        file="$(awk -F@ '{print $3}' <<< "$RES")"
+
+        #printf  "Die Datei $file Im Verzeichnis $path wurde um $(date +'%T') $action!\n" >>$logziel
+
+        if [[ $action == *"gelöscht"* ]]; then printf "\t $path$file um $(date +'%H:%M') \n" >> $logdelete ; fi
+        if [[ $action == *"geändert"* ]]; then printf "\t $path$file um $(date +'%H:%M') \n" >> $logchange ; fi
+        if [[ $action == *"erstellt"* ]]; then printf "\t $path$file um $(date +'%H:%M') \n" >> $logcreate ; fi
+done
+
+printf "Sehr geehrte Damen und Herren,\n\n" > $logziel
+printf "Nachfolgend finden Sie eine Auflistung der geänderten Dateien.\n\n" >> $logziel
+printf "Änderungslog für $(date +'%A %d. %B %Y'):\n\n" >> $logziel
+printf "folgende Dateien wurden geändert:\n" >> $logziel
+awk '!a[$0]++' $logchange >> $logziel
+printf "\n\nfolgende Dateien wurden neu erstellt:\n" >> $logziel
+awk '!a[$0]++' $logcreate >> $logziel
+printf "\n\nfolgende Dateien wurden gelöscht:\n" >> $logziel
+awk '!a[$0]++' $logdelete >> $logziel
+printf "\n\nMit freundlichen Grüßen\n Plan Management System V1.9\n\nDiese Email wurde maschinell erstellt. Es kann NICHT darauf geantwortet werden!" >> $logziel
+
+mail -aFrom:xxx@xxx.de -s "Taegliche Zusammenfassung der Aenderungen" xxx@xxx.de < /tmp/changemon.log
+
+echo "BEENDET"
